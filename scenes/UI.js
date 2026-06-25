@@ -6,7 +6,7 @@ export default class UI extends Phaser.Scene {
     }
 
     create() {
-        // Score (top-left)
+        //score text
         this.scoreText = this.add.text(16, 16, 'Stars: 0/10', {
             fontSize: '24px',
             fontFamily: "'Comic Sans MS', 'Comic Sans', cursive",
@@ -15,7 +15,7 @@ export default class UI extends Phaser.Scene {
         });
         this.scoreText.setScrollFactor(0);
 
-        // Timer (top-center)
+        //timer text
         this.timerText = this.add.text(400, 16, 'Time: 60', {
             fontSize: '24px',
             fontFamily: "'Comic Sans MS', 'Comic Sans', cursive",
@@ -24,7 +24,7 @@ export default class UI extends Phaser.Scene {
         }).setOrigin(0.5, 0);
         this.timerText.setScrollFactor(0);
 
-        // Lives (top-right) - left to right depletion
+        //lives hearts
         this.livesGroup = this.add.group();
         this.heartPositions = [];
         const startX = 700;
@@ -36,7 +36,7 @@ export default class UI extends Phaser.Scene {
             this.livesGroup.add(heart);
         }
 
-        // Timer event
+        //timer countdown
         this.time.addEvent({
             delay: 1000,
             callback: this.countdown,
@@ -77,12 +77,10 @@ export default class UI extends Phaser.Scene {
     removeLife() {
         if (this.lives <= 0) return;
         
-        // Sort hearts by x position (left to right)
         const hearts = this.livesGroup.getChildren();
         hearts.sort((a, b) => a.x - b.x);
         
         if (hearts.length > 0) {
-            // Remove the leftmost heart
             const heartToRemove = hearts[0];
             heartToRemove.destroy();
             this.lives--;

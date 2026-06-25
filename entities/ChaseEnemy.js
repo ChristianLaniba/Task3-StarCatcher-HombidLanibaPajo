@@ -17,19 +17,14 @@ export default class ChaseEnemy extends Phaser.Physics.Arcade.Sprite {
             this.x, this.y, player.x, player.y
         );
         
-        if (distance < 200) { // Sight range: 200px
-            // Move toward player
+        if (distance < 200) {
+            //move toward player
             const dir = player.x > this.x ? 1 : -1;
             this.setVelocityX(this.speed * 1.4 * dir);
-            
-            // Face the player
             this.setFlipX(dir === -1);
-            
-            // Play walking animation
             this.play("chaseWalk", true);
         } else {
             this.setVelocityX(0);
-            // Play idle animation
             this.play("chaseIdle", true);
         }
     }

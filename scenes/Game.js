@@ -18,17 +18,15 @@ export default class Game extends Phaser.Scene {
     }
 
     preload() {
-        // All loading handled in Boot.js
     }
 
     create() {
-        // Get a reference to the UI scene so enemies can call removeLife()
         this.uiScene = this.scene.get('UI');
 
-        // Background
+        //background
         this.add.image(400, 300, "bg").setDisplaySize(800, 600);
 
-        // Ground
+        //ground platform
         this.ground = this.physics.add.staticGroup();
         const base = this.ground.create(400, 580, "mainGround");
         base.setScale(800 / base.width, 100 / base.height);
@@ -36,7 +34,7 @@ export default class Game extends Phaser.Scene {
         base.body.setSize(base.displayWidth, 30);
         base.body.setOffset(0, base.displayHeight - 80);
 
-        // Platforms
+        //platforms
         this.platforms = this.physics.add.staticGroup();
         
         const platformPositions = [
@@ -58,7 +56,7 @@ export default class Game extends Phaser.Scene {
             p.body.setOffset(0, p.displayHeight - 20);
         });
 
-        // Player
+        //player setup
         this.player = this.physics.add.sprite(100, 400, "player");
         this.player.setScale(0.1);
         this.player.setBounce(0.1);
@@ -67,14 +65,14 @@ export default class Game extends Phaser.Scene {
         this.player.setOffset(180, 180);
         this.player.isInvincible = false;
 
-        // Colliders
+        //colliders
         this.physics.add.collider(this.player, this.ground);
         this.physics.add.collider(this.player, this.platforms);
 
-        // Controls
+        //controls
         this.cursors = this.input.keyboard.createCursorKeys();
 
-        // Player animations
+        //player animations
         this.anims.create({
             key: "idle",
             frames: [{ key: "player", frame: 0 }],
@@ -100,7 +98,7 @@ export default class Game extends Phaser.Scene {
 
         this.player.play("idle");
 
-        // Patrol enemy animations
+        //patrol enemy animations
         this.anims.create({
             key: "patrolIdle",
             frames: [{ key: "patrolEnemy", frame: 0 }],
@@ -118,7 +116,7 @@ export default class Game extends Phaser.Scene {
             repeat: -1
         });
 
-        // Chase enemy animations
+        //chase enemy animations
         this.anims.create({
             key: "chaseIdle",
             frames: [{ key: "chaseEnemy", frame: 0 }],
@@ -136,10 +134,10 @@ export default class Game extends Phaser.Scene {
             repeat: -1
         });
 
-        // Stars group
+        //stars group
         this.stars = this.physics.add.group();
 
-        // Star collection method
+        //collect star method
         this.collectStar = (player, star) => {
             star.destroy();
             
@@ -194,22 +192,22 @@ export default class Game extends Phaser.Scene {
             bomb.setVelocity(Phaser.Math.Between(-220, 220), 20);
         };
 
-        // Enemy hit handler (stomp + iframes)
+        //enemy hit handler (stomp + iframes)
         this.hitEnemy = (player, enemy) => {
-            // Stomp: player falling onto enemy from above
+            //stomp from above
             if (player.body.velocity.y > 0 && player.y < enemy.y) {
                 enemy.disableBody(true, true);
                 this.spawnParticles(enemy.x, enemy.y);
                 player.setVelocityY(-300);
             } else {
-                // Player takes damage - only if not invincible
+                //take damage if not invincible
                 if (!player.isInvincible) {
                     this.playerHit();
                 }
             }
         };
 
-        // Spawn particle burst helper
+        //particle burst helper
         this.spawnParticles = (x, y) => {
             const particles = this.add.particles(x, y, 'particle', {
                 speed: { min: 80, max: 200 },
@@ -221,7 +219,7 @@ export default class Game extends Phaser.Scene {
             particles.explode(12);
         };
 
-        // Player hit with iframes (for both enemies and bombs)
+        //player hit with iframes
         this.playerHit = () => {
             if (this.player.isInvincible) return;
             this.player.isInvincible = true;
@@ -229,7 +227,7 @@ export default class Game extends Phaser.Scene {
                 this.uiScene.removeLife();
             }
             
-            // Flash the player sprite
+            //flash player sprite
             this.tweens.add({
                 targets: this.player,
                 alpha: 0,
@@ -243,7 +241,7 @@ export default class Game extends Phaser.Scene {
             });
         };
 
-        // Bomb hit - flash player and destroy bomb
+        //bomb hit - flash player and destroy bomb
         this.hitBomb = (player, bomb) => {
             bomb.destroy();
             
@@ -252,7 +250,7 @@ export default class Game extends Phaser.Scene {
             }
         };
 
-        // Patrol enemies
+        //patrol enemies
         this.enemies = this.physics.add.group();
         
         const patrolPositions = [
@@ -271,7 +269,7 @@ export default class Game extends Phaser.Scene {
             this.enemies.add(enemy);
         });
 
-        // Chase enemies
+        //chase enemies
         this.chasers = this.physics.add.group();
         
         const chasePositions = [
@@ -290,27 +288,25 @@ export default class Game extends Phaser.Scene {
             this.chasers.add(chaser);
         });
 
-        // Collisions for enemies with ground and platforms
+        //enemy collisions with ground and platforms
         this.physics.add.collider(this.enemies, this.ground);
         this.physics.add.collider(this.enemies, this.platforms);
         this.physics.add.collider(this.chasers, this.ground);
         this.physics.add.collider(this.chasers, this.platforms);
         
-        // Player vs enemies overlap (stomp/damage)
+        //player vs enemies overlap
         this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
         this.physics.add.overlap(this.player, this.chasers, this.hitEnemy, null, this);
 
-        // Bombs
+        //bombs group
         this.bombs = this.physics.add.group();
 
-        // Bomb collisions with ground and platforms
+        //bomb collisions
         this.physics.add.collider(this.bombs, this.ground);
         this.physics.add.collider(this.bombs, this.platforms);
-        
-        // Player vs bomb overlap
         this.physics.add.overlap(this.player, this.bombs, this.hitBomb, null, this);
 
-        // Create all stars
+        //helper to create stars
         const createStar = (x, y) => {
             const star = this.stars.create(x, y || 0, "star");
             star.setScale(0.5);
@@ -320,17 +316,17 @@ export default class Game extends Phaser.Scene {
             return star;
         };
 
-        // Initial stars (3 stars total)
+        //initial stars
         createStar(Phaser.Math.Between(50, 750), 0);
         createStar(250, 150);
         createStar(650, 120);
 
-        // Star collisions
+        //star collisions
         this.physics.add.collider(this.stars, this.ground);
         this.physics.add.collider(this.stars, this.platforms);
         this.physics.add.overlap(this.player, this.stars, this.collectStar, null, this);
 
-        // Launch UI on top
+        //launch UI
         this.scene.launch('UI');
     }
 
@@ -340,6 +336,7 @@ export default class Game extends Phaser.Scene {
         let speed = 250;
         let moving = false;
 
+        //movement
         if (this.cursors.left.isDown) {
             this.player.setVelocityX(-speed);
             this.player.setFlipX(true);
@@ -354,10 +351,12 @@ export default class Game extends Phaser.Scene {
             this.player.setVelocityX(0);
         }
 
+        //jump
         if (this.cursors.up.isDown && this.player.body.blocked.down) {
             this.player.setVelocityY(-520);
         }
 
+        //animation
         if (!this.player.body.blocked.down) {
             this.player.play("jump", true);
         }
@@ -368,14 +367,14 @@ export default class Game extends Phaser.Scene {
             this.player.play("idle", true);
         }
 
-        // Update patrol enemies
+        //update patrol enemies
         this.enemies.getChildren().forEach(e => {
             if (e.active) {
                 e.patrol(this.platforms);
             }
         });
         
-        // Update chase enemies
+        //update chase enemies
         this.chasers.getChildren().forEach(e => {
             if (e.active) {
                 e.chase(this.player);
