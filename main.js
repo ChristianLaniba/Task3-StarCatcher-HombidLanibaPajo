@@ -234,7 +234,7 @@ class GameScene extends Phaser.Scene {
             particles.explode(12);
         };
 
-        //player hit with iframes
+        //player hit with iframes (for both enemies and bombs)
         this.playerHit = () => {
             if (this.player.isInvincible) return;
             this.player.isInvincible = true;
@@ -254,6 +254,17 @@ class GameScene extends Phaser.Scene {
                     this.player.isInvincible = false;
                 }
             });
+        };
+
+        //bomb hit - flash player and destroy bomb
+        this.hitBomb = (player, bomb) => {
+            //destroy the bomb
+            bomb.destroy();
+            
+            //only damage player if not invincible
+            if (!player.isInvincible) {
+                this.playerHit();
+            }
         };
 
         //patrol enemies
@@ -304,13 +315,15 @@ class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
         this.physics.add.overlap(this.player, this.chasers, this.hitEnemy, null, this);
 
-        //bomb hit
-        this.hitBomb = (player, bomb) => {
-            bomb.destroy();
-            if (this.uiScene) {
-                this.uiScene.removeLife();
-            }
-        };
+        //bombs
+        this.bombs = this.physics.add.group();
+
+        //bomb collisions with ground and platforms
+        this.physics.add.collider(this.bombs, this.ground);
+        this.physics.add.collider(this.bombs, this.platforms);
+        
+        //player vs bomb overlap
+        this.physics.add.overlap(this.player, this.bombs, this.hitBomb, null, this);
 
         //create all stars
         const createStar = (x, y) => {
@@ -331,14 +344,6 @@ class GameScene extends Phaser.Scene {
         this.physics.add.collider(this.stars, this.ground);
         this.physics.add.collider(this.stars, this.platforms);
         this.physics.add.overlap(this.player, this.stars, this.collectStar, null, this);
-
-        //bombs
-        this.bombs = this.physics.add.group();
-
-        //bomb collisions
-        this.physics.add.collider(this.bombs, this.ground);
-        this.physics.add.collider(this.bombs, this.platforms);
-        this.physics.add.collider(this.player, this.bombs, this.hitBomb, null, this);
 
         //launch UI on top
         this.scene.launch('UI');
