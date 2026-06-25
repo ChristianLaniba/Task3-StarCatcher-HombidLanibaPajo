@@ -17,12 +17,24 @@ class GameScene extends Phaser.Scene {
             frameWidth: 540,
             frameHeight: 540
         });
+        this.load.spritesheet("patrolEnemy", "assets/patrolEnemy.png", {
+            frameWidth: 540,
+            frameHeight: 540
+        });
+        this.load.spritesheet("chaseEnemy", "assets/chaseEnemy.png", {
+            frameWidth: 540,
+            frameHeight: 540
+        });
         this.load.image("star", "assets/star.png");
         this.load.image("bomb", "assets/bomb.png");
         this.load.image("heart", "assets/heart.png");
+        this.load.image("particle", "assets/particle.png");
     }
 
     create() {
+        //get a reference to the UI scene so enemies can call removeLive()
+        this.uiScene = this.scene.get('UI');
+
         const colors = [
             0xff0000, 0xff7f00, 0xffff00, 0x00ff00,
             0x0000ff, 0x4b0082, 0x9400d3
@@ -67,6 +79,7 @@ class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         this.player.setSize(180, 425);
         this.player.setOffset(180, 180);
+        this.player.isInvincible = false;
 
         //colliders
         this.physics.add.collider(this.player, this.ground);
@@ -75,7 +88,7 @@ class GameScene extends Phaser.Scene {
         //controls
         this.cursors = this.input.keyboard.createCursorKeys();
 
-        //animations
+        //player animations
         this.anims.create({
             key: "idle",
             frames: [{ key: "player", frame: 0 }],
@@ -101,29 +114,61 @@ class GameScene extends Phaser.Scene {
 
         this.player.play("idle");
 
+        //patrol enemy animations
+        this.anims.create({
+            key: "patrolIdle",
+            frames: [{ key: "patrolEnemy", frame: 0 }],
+            frameRate: 1,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: "patrolWalk",
+            frames: [
+                { key: "patrolEnemy", frame: 2 },
+                { key: "patrolEnemy", frame: 3 }
+            ],
+            frameRate: 8,
+            repeat: -1
+        });
+
+        //chase enemy animations
+        this.anims.create({
+            key: "chaseIdle",
+            frames: [{ key: "chaseEnemy", frame: 0 }],
+            frameRate: 1,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: "chaseWalk",
+            frames: [
+                { key: "chaseEnemy", frame: 2 },
+                { key: "chaseEnemy", frame: 3 }
+            ],
+            frameRate: 8,
+            repeat: -1
+        });
+
         //stars
         this.stars = this.physics.add.group();
 
         this.collectStar = (player, star) => {
-            //destroy the star we collected
             star.destroy();
             
-            //increment score if not at max
             if (this.score < this.maxStars) {
                 this.score++;
                 console.log("Score: ", this.score);
+                this.spawnParticles(star.x, star.y);
             }
 
-            //check if we reached max
             if (this.score >= this.maxStars && !this.reachedMax) {
                 this.reachedMax = true;
                 this.score = this.maxStars;
                 
-                //despawn ALL remaining stars
                 const remainingStars = this.stars.getChildren();
                 console.log("Remaining stars to despawn: " + remainingStars.length);
                 
-                //store in array to avoid modification issues
                 const starsToDestroy = [...remainingStars];
                 starsToDestroy.forEach(s => {
                     s.destroy();
@@ -133,22 +178,18 @@ class GameScene extends Phaser.Scene {
                 return;
             }
 
-            //don't spawn anything if we already reached max
             if (this.reachedMax) {
                 return;
             }
 
-            //player tint
             player.setTint(colors[this.colorIndex]);
             this.colorIndex = (this.colorIndex + 1) % colors.length;
 
-            //scale up
             if (Math.floor(this.score / 5) > this.lastScaleMilestone) {
                 this.lastScaleMilestone++;
                 player.setScale(player.scaleX * 1.1);
             }
 
-            //spawn new star
             const x = Phaser.Math.Between(50, 750);
             const newStar = this.stars.create(x, 0, "star");
             newStar.setScale(0.5);
@@ -156,7 +197,6 @@ class GameScene extends Phaser.Scene {
             newStar.setBounce(0);
             newStar.setCollideWorldBounds(true);
 
-            //spawn bomb
             const bombX = player.x < 400 ? Phaser.Math.Between(420, 780) : Phaser.Math.Between(20, 380);
             const bomb = this.bombs.create(bombX, 0, "bomb");
             bomb.body.setOffset(0, 70);
@@ -167,15 +207,112 @@ class GameScene extends Phaser.Scene {
             bomb.setVelocity(Phaser.Math.Between(-220, 220), 20);
         };
 
-        this.hitBomb = (player, bomb) => {
-            bomb.destroy();
-            const uiScene = this.scene.get('UI');
-            if (uiScene) {
-                uiScene.removeLife();
+        //enemy hit handler (stomp + iframes)
+        this.hitEnemy = (player, enemy) => {
+            //stomp: player falling onto enemy from above
+            if (player.body.velocity.y > 0 && player.y < enemy.y) {
+                enemy.disableBody(true, true);
+                this.spawnParticles(enemy.x, enemy.y);
+                player.setVelocityY(-300);
+            } else {
+                //player takes damage - only if not invincible
+                if (!player.isInvincible) {
+                    this.playerHit();
+                }
             }
         };
 
-        //create all stars in a function
+        //spawn particle burst helper
+        this.spawnParticles = (x, y) => {
+            const particles = this.add.particles(x, y, 'particle', {
+                speed: { min: 80, max: 200 },
+                scale: { start: 0.6, end: 0 },
+                lifespan: 400,
+                quantity: 12,
+                emitting: false
+            });
+            particles.explode(12);
+        };
+
+        //player hit with iframes
+        this.playerHit = () => {
+            if (this.player.isInvincible) return;
+            this.player.isInvincible = true;
+            if (this.uiScene) {
+                this.uiScene.removeLife();
+            }
+            
+            //flash the player sprite
+            this.tweens.add({
+                targets: this.player,
+                alpha: 0,
+                duration: 100,
+                repeat: 5,
+                yoyo: true,
+                onComplete: () => {
+                    this.player.alpha = 1;
+                    this.player.isInvincible = false;
+                }
+            });
+        };
+
+        //patrol enemies
+        this.enemies = this.physics.add.group();
+        
+        const patrolPositions = [
+            { x: 150, y: 430 },
+            { x: 650, y: 360 }
+        ];
+        
+        patrolPositions.forEach(pos => {
+            const enemy = new PatrolEnemy(this, pos.x, pos.y, 'patrolEnemy');
+            enemy.setScale(0.1);
+            enemy.setSize(180, 425);
+            enemy.setOffset(180, 180);
+            enemy.speed = 80;
+            enemy.direction = 1;
+            enemy.play("patrolIdle");
+            this.enemies.add(enemy);
+        });
+
+        //chase enemies
+        this.chasers = this.physics.add.group();
+        
+        const chasePositions = [
+            { x: 500, y: 260 },
+            { x: 200, y: 160 }
+        ];
+        
+        chasePositions.forEach(pos => {
+            const chaser = new ChaseEnemy(this, pos.x, pos.y, 'chaseEnemy');
+            chaser.setScale(0.1);
+            chaser.setSize(180, 425);
+            chaser.setOffset(180, 180);
+            chaser.speed = 80;
+            chaser.direction = 1;
+            chaser.play("chaseIdle");
+            this.chasers.add(chaser);
+        });
+
+        //collisions for enemies with ground and platforms
+        this.physics.add.collider(this.enemies, this.ground);
+        this.physics.add.collider(this.enemies, this.platforms);
+        this.physics.add.collider(this.chasers, this.ground);
+        this.physics.add.collider(this.chasers, this.platforms);
+        
+        //player vs enemies overlap (stomp/damage)
+        this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, null, this);
+        this.physics.add.overlap(this.player, this.chasers, this.hitEnemy, null, this);
+
+        //bomb hit
+        this.hitBomb = (player, bomb) => {
+            bomb.destroy();
+            if (this.uiScene) {
+                this.uiScene.removeLife();
+            }
+        };
+
+        //create all stars
         const createStar = (x, y) => {
             const star = this.stars.create(x, y || 0, "star");
             star.setScale(0.5);
@@ -239,6 +376,133 @@ class GameScene extends Phaser.Scene {
         }
         else {
             this.player.play("idle", true);
+        }
+
+        //update patrol enemies
+        this.enemies.getChildren().forEach(e => {
+            if (e.active) {
+                e.patrol(this.platforms);
+            }
+        });
+        
+        //update chase enemies
+        this.chasers.getChildren().forEach(e => {
+            if (e.active) {
+                e.chase(this.player);
+            }
+        });
+    }
+}
+
+//Patrol Enemy class - turns at platform edges to prevent falling
+class PatrolEnemy extends Phaser.Physics.Arcade.Sprite {
+    constructor(scene, x, y, texture) {
+        super(scene, x, y, texture);
+        scene.add.existing(this);
+        scene.physics.add.existing(this);
+        this.setCollideWorldBounds(true);
+        this.setBounce(0.1);
+        this.speed = 80;
+        this.direction = 1; //1 = right, -1 = left
+        this.body.setGravityY(900);
+    }
+
+    patrol(platforms) {
+        if (!this.active || !this.body) return;
+        
+        //walk in current direction
+        this.setVelocityX(this.speed * this.direction);
+
+        //check if there's a platform ahead
+        const checkDistance = 30;
+        const checkX = this.x + (this.direction * checkDistance);
+        const checkY = this.y + 50;
+        
+        let willFall = true;
+        
+        //check against all platforms
+        const platformChildren = platforms.getChildren();
+        for (let i = 0; i < platformChildren.length; i++) {
+            const platform = platformChildren[i];
+            if (checkX > platform.x - platform.displayWidth/2 && 
+                checkX < platform.x + platform.displayWidth/2 &&
+                checkY > platform.y - platform.displayHeight/2 &&
+                checkY < platform.y + platform.displayHeight/2 + 10) {
+                willFall = false;
+                break;
+            }
+        }
+        
+        //check against ground
+        const groundY = 580;
+        if (checkY > groundY - 30 && checkY < groundY + 30) {
+            willFall = false;
+        }
+
+        //turn around if about to fall off
+        if (willFall) {
+            this.direction *= -1;
+            this.setFlipX(this.direction === -1);
+        }
+
+        //turn at screen edges
+        if (this.x >= 780) {
+            this.direction = -1;
+            this.setFlipX(true);
+        } else if (this.x <= 20) {
+            this.direction = 1;
+            this.setFlipX(false);
+        }
+
+        //turn at wall collisions
+        if (this.body.blocked.right) {
+            this.direction = -1;
+            this.setFlipX(true);
+        }
+        if (this.body.blocked.left) {
+            this.direction = 1;
+            this.setFlipX(false);
+        }
+
+        //play walking animation
+        this.play("patrolWalk", true);
+    }
+}
+
+//Chase Enemy class - moves toward player within range
+class ChaseEnemy extends Phaser.Physics.Arcade.Sprite {
+    constructor(scene, x, y, texture) {
+        super(scene, x, y, texture);
+        scene.add.existing(this);
+        scene.physics.add.existing(this);
+        this.setCollideWorldBounds(true);
+        this.setBounce(0.1);
+        this.speed = 80;
+        this.direction = 1;
+        this.body.setGravityY(900);
+    }
+
+    chase(player) {
+        if (!this.active || !this.body) return;
+        
+        const distance = Phaser.Math.Distance.Between(
+            this.x, this.y, player.x, player.y
+        );
+        
+        if (distance < 200) { //sight range: 200px
+            //move toward player
+            const dir = player.x > this.x ? 1 : -1;
+            this.setVelocityX(this.speed * 1.4 * dir);
+            
+            //face the player
+            this.setFlipX(dir === -1);
+            
+            //play walking animation
+            this.play("chaseWalk", true);
+        } else {
+            this.setVelocityX(0);
+            //play idle animation
+            this.play("chaseIdle", true);
         }
     }
 }
